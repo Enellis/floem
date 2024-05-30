@@ -1,4 +1,4 @@
-use core::indent::IndentStyle;
+use core::{indent::IndentStyle, modal_flavour::ModalFlavour, mode::VisualMode};
 use std::{
     cell::{Cell, RefCell},
     cmp::Ordering,
@@ -74,7 +74,12 @@ impl StylePropValue for WrapMethod {
 prop!(pub CursorSurroundingLines: usize {} = 1);
 prop!(pub ScrollBeyondLastLine: bool {} = false);
 prop!(pub ShowIndentGuide: bool {} = false);
-prop!(pub Modal: bool {} = false);
+prop!(pub ModalFlavourProp: ModalFlavour {} = ModalFlavour::None);
+impl StylePropValue for ModalFlavour {
+    fn debug_view(&self) -> Option<Box<dyn View>> {
+        Some(crate::views::text(self).into_any())
+    }
+}
 prop!(pub ModalRelativeLine: bool {} = false);
 prop!(pub SmartTab: bool {} = false);
 prop!(pub PhantomColor: Color {} = Color::DIM_GRAY);
@@ -109,7 +114,7 @@ prop_extractor! {
         pub placeholder_color: PlaceholderColor,
         pub preedit_underline_color: PreeditUnderlineColor,
         pub show_indent_guide: ShowIndentGuide,
-        pub modal: Modal,
+        pub modal_flavour: ModalFlavourProp,
         // Whether line numbers are relative in modal mode
         pub modal_relative_line: ModalRelativeLine,
         // Whether to insert the indent that is detected for the file when a tab character
@@ -196,9 +201,14 @@ impl Editor {
     /// Create a new editor into the given document, using the styling.  
     /// `doc`: The backing [`Document`], such as [TextDocument](self::text_document::TextDocument)
     /// `style`: How the editor should be styled, such as [SimpleStyling](self::text::SimpleStyling)
-    pub fn new(cx: Scope, doc: Rc<dyn Document>, style: Rc<dyn Styling>, modal: bool) -> Editor {
+    pub fn new(
+        cx: Scope,
+        doc: Rc<dyn Document>,
+        style: Rc<dyn Styling>,
+        modal_flavour: ModalFlavour,
+    ) -> Editor {
         let id = EditorId::next();
-        Editor::new_id(cx, id, doc, style, modal)
+        Editor::new_id(cx, id, doc, style, modal_flavour)
     }
 
     /// Create a new editor into the given document, using the styling.  
@@ -210,9 +220,9 @@ impl Editor {
         id: EditorId,
         doc: Rc<dyn Document>,
         style: Rc<dyn Styling>,
-        modal: bool,
+        modal_flavour: ModalFlavour,
     ) -> Editor {
-        let editor = Editor::new_direct(cx, id, doc, style, modal);
+        let editor = Editor::new_direct(cx, id, doc, style, modal_flavour);
         editor.recreate_view_effects();
 
         editor
@@ -239,15 +249,19 @@ impl Editor {
         id: EditorId,
         doc: Rc<dyn Document>,
         style: Rc<dyn Styling>,
-        modal: bool,
+        modal_flavour: ModalFlavour,
     ) -> Editor {
         let cx = cx.create_child();
 
         let viewport = cx.create_rw_signal(Rect::ZERO);
-        let cursor_mode = if modal {
-            CursorMode::Normal(0)
-        } else {
-            CursorMode::Insert(Selection::caret(0))
+        let cursor_mode = match modal_flavour {
+            ModalFlavour::None => CursorMode::Insert(Selection::caret(0)),
+            ModalFlavour::Vim => CursorMode::Normal(0),
+            ModalFlavour::Helix => CursorMode::Visual {
+                start: 0,
+                end: 3,
+                mode: VisualMode::HelixNormal,
+            },
         };
         let cursor = Cursor::new(cursor_mode, None, None);
         let cursor = cx.create_rw_signal(cursor);
@@ -387,7 +401,7 @@ impl Editor {
             editor_id.unwrap_or_else(EditorId::next),
             doc,
             style,
-            false,
+            ModalFlavour::None,
         );
 
         batch(|| {

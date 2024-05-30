@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     buffer::{rope_text::RopeText, Buffer},
+    modal_flavour::ModalFlavour,
     mode::{Mode, MotionMode, VisualMode},
     register::RegisterData,
     selection::{InsertDrift, SelRegion, Selection},
@@ -168,12 +169,16 @@ impl Cursor {
         }
     }
 
-    pub fn origin(modal: bool) -> Self {
+    pub fn origin(modal_flavour: ModalFlavour) -> Self {
         Self::new(
-            if modal {
-                CursorMode::Normal(0)
-            } else {
-                CursorMode::Insert(Selection::caret(0))
+            match modal_flavour {
+                ModalFlavour::None => CursorMode::Insert(Selection::caret(0)),
+                ModalFlavour::Vim => CursorMode::Normal(0),
+                ModalFlavour::Helix => CursorMode::Visual {
+                    start: 0,
+                    end: 0,
+                    mode: VisualMode::HelixNormal,
+                },
             },
             None,
             None,
@@ -225,6 +230,18 @@ impl Cursor {
 
     pub fn update_selection(&mut self, buffer: &Buffer, selection: Selection) {
         match self.mode {
+            CursorMode::Visual {
+                mode: VisualMode::HelixNormal,
+                ..
+            } => {
+                let offset = selection.min_offset();
+                let offset = buffer.offset_line_end(offset, false).min(offset);
+                self.mode = CursorMode::Visual {
+                    start: offset,
+                    end: offset,
+                    mode: VisualMode::HelixNormal,
+                }
+            }
             CursorMode::Normal(_) | CursorMode::Visual { .. } => {
                 let offset = selection.min_offset();
                 let offset = buffer.offset_line_end(offset, false).min(offset);
@@ -243,7 +260,7 @@ impl Cursor {
                 Selection::region(*offset, text.next_grapheme_offset(*offset, 1, text.len()))
             }
             CursorMode::Visual { start, end, mode } => match mode {
-                VisualMode::Normal => Selection::region(
+                VisualMode::Normal | VisualMode::HelixNormal => Selection::region(
                     *start.min(end),
                     text.next_grapheme_offset(*start.max(end), 1, text.len()),
                 ),
@@ -340,7 +357,7 @@ impl Cursor {
                 )
             }
             CursorMode::Visual { start, end, mode } => match mode {
-                VisualMode::Normal => (
+                VisualMode::Normal | VisualMode::HelixNormal => (
                     text.slice_to_cow(
                         *start.min(end)..text.next_grapheme_offset(*start.max(end), 1, text.len()),
                     )
@@ -450,6 +467,25 @@ impl Cursor {
                     };
                 } else {
                     self.mode = CursorMode::Normal(offset);
+                }
+            }
+            CursorMode::Visual {
+                start,
+                end: _,
+                mode: VisualMode::HelixNormal,
+            } => {
+                if modify {
+                    self.mode = CursorMode::Visual {
+                        start: *start,
+                        end: offset,
+                        mode: VisualMode::HelixNormal,
+                    };
+                } else {
+                    self.mode = CursorMode::Visual {
+                        start: offset,
+                        end: offset,
+                        mode: VisualMode::HelixNormal,
+                    };
                 }
             }
             CursorMode::Visual {

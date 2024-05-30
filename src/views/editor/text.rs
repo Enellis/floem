@@ -15,6 +15,7 @@ use floem_editor_core::{
     cursor::Cursor,
     editor::EditType,
     indent::IndentStyle,
+    modal_flavour::ModalFlavour,
     mode::MotionMode,
     register::{Clipboard, Register},
     selection::Selection,
@@ -553,12 +554,12 @@ where
         ed: &Editor,
         cursor: &mut Cursor,
         cmd: &EditCommand,
-        modal: bool,
+        modal_flavour: ModalFlavour,
         register: &mut Register,
         smart_tab: bool,
     ) -> bool {
         self.doc
-            .do_edit(ed, cursor, cmd, modal, register, smart_tab)
+            .do_edit(ed, cursor, cmd, modal_flavour, register, smart_tab)
     }
 }
 

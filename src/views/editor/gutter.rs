@@ -10,7 +10,7 @@ use crate::{
     views::Decorators,
     Renderer,
 };
-use floem_editor_core::{cursor::CursorMode, mode::Mode};
+use floem_editor_core::{cursor::CursorMode, modal_flavour::ModalFlavour, mode::Mode};
 use floem_reactive::RwSignal;
 use peniko::kurbo::Rect;
 use peniko::Color;
@@ -149,7 +149,7 @@ impl View for EditorGutterView {
             .font_size(style.font_size(edid, 0) as f32);
         let attrs_list = AttrsList::new(attrs);
         let current_line_attrs_list = AttrsList::new(attrs.color(accent_color));
-        let show_relative = editor.es.with_untracked(|es| es.modal())
+        let show_relative = editor.es.with_untracked(|es| es.modal_flavour()) != ModalFlavour::None
             && editor.es.with_untracked(|es| es.modal_relative_line())
             && mode != Mode::Insert;
 

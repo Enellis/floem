@@ -7,6 +7,7 @@ use crate::{
     buffer::{rope_text::RopeText, Buffer, InvalLines},
     command::EditCommand,
     cursor::{get_first_selection_after, Cursor, CursorMode},
+    modal_flavour::ModalFlavour,
     mode::{Mode, MotionMode, VisualMode},
     register::{Clipboard, Register, RegisterData, RegisterKind},
     selection::{InsertDrift, SelRegion, Selection},
@@ -77,7 +78,7 @@ impl EditType {
 
 pub struct EditConf<'a> {
     pub comment_token: &'a str,
-    pub modal: bool,
+    pub modal_flavour: ModalFlavour,
     pub smart_tab: bool,
     pub keep_indent: bool,
     pub auto_indent: bool,
@@ -289,8 +290,8 @@ impl Action {
         deltas
     }
 
-    fn toggle_visual(cursor: &mut Cursor, visual_mode: VisualMode, modal: bool) {
-        if !modal {
+    fn toggle_visual(cursor: &mut Cursor, visual_mode: VisualMode, modal_flavour: ModalFlavour) {
+        if modal_flavour == ModalFlavour::None {
             return;
         }
 
@@ -554,7 +555,7 @@ impl Action {
     ) -> Vec<(Rope, RopeDelta, InvalLines)> {
         let mut deltas = Vec::new();
         match data.mode {
-            VisualMode::Normal => {
+            VisualMode::Normal | VisualMode::HelixNormal => {
                 let selection = match cursor.mode {
                     CursorMode::Normal(offset) => {
                         let line_end = buffer.offset_line_end(offset, true);
@@ -754,7 +755,7 @@ impl Action {
         register: &mut Register,
         EditConf {
             comment_token,
-            modal,
+            modal_flavour,
             smart_tab,
             keep_indent,
             auto_indent,
@@ -965,14 +966,30 @@ impl Action {
             }
             Undo => {
                 if let Some((text, delta, inval_lines, cursor_mode)) = buffer.do_undo() {
-                    apply_undo_redo(cursor, buffer, modal, text, delta, inval_lines, cursor_mode)
+                    apply_undo_redo(
+                        cursor,
+                        buffer,
+                        modal_flavour,
+                        text,
+                        delta,
+                        inval_lines,
+                        cursor_mode,
+                    )
                 } else {
                     vec![]
                 }
             }
             Redo => {
                 if let Some((text, delta, inval_lines, cursor_mode)) = buffer.do_redo() {
-                    apply_undo_redo(cursor, buffer, modal, text, delta, inval_lines, cursor_mode)
+                    apply_undo_redo(
+                        cursor,
+                        buffer,
+                        modal_flavour,
+                        text,
+                        delta,
+                        inval_lines,
+                        cursor_mode,
+                    )
                 } else {
                     vec![]
                 }
@@ -1369,7 +1386,7 @@ impl Action {
                 vec![(text, delta, inval_lines)]
             }
             NormalMode => {
-                if !modal {
+                if modal_flavour == ModalFlavour::None {
                     if let CursorMode::Insert(selection) = &cursor.mode {
                         match selection.regions().len() {
                             i if i > 1 => {
@@ -1408,7 +1425,15 @@ impl Action {
                 };
 
                 buffer.reset_edit_type();
-                cursor.mode = CursorMode::Normal(offset);
+                cursor.mode = if modal_flavour == ModalFlavour::Vim {
+                    CursorMode::Normal(offset)
+                } else {
+                    CursorMode::Visual {
+                        start: offset,
+                        end: offset,
+                        mode: VisualMode::HelixNormal,
+                    }
+                };
                 cursor.horiz = None;
                 vec![]
             }
@@ -1451,15 +1476,15 @@ impl Action {
                 vec![]
             }
             ToggleVisualMode => {
-                Self::toggle_visual(cursor, VisualMode::Normal, modal);
+                Self::toggle_visual(cursor, VisualMode::Normal, modal_flavour);
                 vec![]
             }
             ToggleLinewiseVisualMode => {
-                Self::toggle_visual(cursor, VisualMode::Linewise, modal);
+                Self::toggle_visual(cursor, VisualMode::Linewise, modal_flavour);
                 vec![]
             }
             ToggleBlockwiseVisualMode => {
-                Self::toggle_visual(cursor, VisualMode::Blockwise, modal);
+                Self::toggle_visual(cursor, VisualMode::Blockwise, modal_flavour);
                 vec![]
             }
             DuplicateLineUp => Self::duplicate_line(cursor, buffer, DuplicateDirection::Up),
@@ -1480,14 +1505,14 @@ impl Action {
 fn apply_undo_redo(
     cursor: &mut Cursor,
     buffer: &mut Buffer,
-    modal: bool,
+    modal_flavour: ModalFlavour,
     text: Rope,
     delta: RopeDelta,
     inval_lines: InvalLines,
     cursor_mode: Option<CursorMode>,
 ) -> Vec<(Rope, RopeDelta, InvalLines)> {
     if let Some(cursor_mode) = cursor_mode {
-        cursor.mode = if modal {
+        cursor.mode = if modal_flavour != ModalFlavour::None {
             CursorMode::Normal(cursor_mode.offset())
         } else if cursor.is_insert() {
             cursor_mode

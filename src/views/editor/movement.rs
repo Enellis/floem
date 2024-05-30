@@ -4,6 +4,7 @@ use floem_editor_core::{
     buffer::rope_text::{RopeText, RopeTextVal},
     command::MultiSelectionCommand,
     cursor::{ColPosition, Cursor, CursorAffinity, CursorMode},
+    modal_flavour::helix::helix_move_cursor,
     mode::{Mode, MotionMode, VisualMode},
     movement::{LinePosition, Movement},
     register::Register,
@@ -625,6 +626,27 @@ pub fn move_cursor(
                 cursor.horiz = horiz;
             }
         }
+        CursorMode::Visual {
+            start,
+            end,
+            mode: VisualMode::HelixNormal,
+        } => {
+            let move_offset_proxy = |count: usize, offset, movement: &Movement| {
+                move_offset(
+                    ed,
+                    offset,
+                    cursor.horiz.as_ref(),
+                    &mut cursor.affinity,
+                    count,
+                    movement,
+                    Mode::Visual(VisualMode::HelixNormal),
+                )
+            };
+            let (cursor_mode, horiz) =
+                helix_move_cursor(start, end, count, movement, move_offset_proxy);
+            cursor.mode = cursor_mode;
+            cursor.horiz = horiz;
+        }
         CursorMode::Visual { start, end, mode } => {
             let (new_offset, horiz) = move_offset(
                 ed,
@@ -782,6 +804,7 @@ mod tests {
     use floem_editor_core::{
         buffer::rope_text::{RopeText, RopeTextVal},
         cursor::{ColPosition, CursorAffinity},
+        modal_flavour::ModalFlavour,
         mode::Mode,
     };
     use floem_reactive::Scope;
@@ -799,7 +822,7 @@ mod tests {
         let cx = Scope::new();
         let doc = Rc::new(TextDocument::new(cx, text));
         let style = Rc::new(SimpleStyling::new());
-        Editor::new(cx, doc, style, false)
+        Editor::new(cx, doc, style, ModalFlavour::None)
     }
 
     // Tests for movement logic.

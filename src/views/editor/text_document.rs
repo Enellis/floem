@@ -10,6 +10,7 @@ use floem_editor_core::{
     command::EditCommand,
     cursor::Cursor,
     editor::{Action, EditConf, EditType},
+    modal_flavour::ModalFlavour,
     mode::{Mode, MotionMode},
     register::Register,
     selection::Selection,
@@ -313,7 +314,7 @@ impl CommonAction for TextDocument {
         ed: &Editor,
         cursor: &mut Cursor,
         cmd: &EditCommand,
-        modal: bool,
+        modal_flavour: ModalFlavour,
         register: &mut Register,
         smart_tab: bool,
     ) -> bool {
@@ -334,7 +335,7 @@ impl CommonAction for TextDocument {
                     &mut clipboard,
                     register,
                     EditConf {
-                        modal,
+                        modal_flavour,
                         comment_token: "",
                         smart_tab,
                         keep_indent: self.keep_indent.get(),

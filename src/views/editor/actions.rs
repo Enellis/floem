@@ -4,6 +4,7 @@ use crate::keyboard::Modifiers;
 use floem_editor_core::{
     command::{EditCommand, MotionModeCommand, MultiSelectionCommand, ScrollCommand},
     cursor::Cursor,
+    modal_flavour::ModalFlavour,
     mode::MotionMode,
     movement::Movement,
     register::Register,
@@ -37,7 +38,7 @@ fn handle_edit_command_default(
     action: &dyn CommonAction,
     cmd: &EditCommand,
 ) -> CommandExecuted {
-    let modal = ed.es.with_untracked(|es| es.modal());
+    let modal_flavour = ed.es.with_untracked(|es| es.modal_flavour());
     let smart_tab = ed.es.with_untracked(|es| es.smart_tab());
     let mut cursor = ed.cursor.get_untracked();
     let mut register = ed.register.get_untracked();
@@ -54,7 +55,14 @@ fn handle_edit_command_default(
     // modal + smart-tab (etc) if it wants?
     // That would end up with some duplication of logic, but it would
     // be more flexible.
-    let had_edits = action.do_edit(ed, &mut cursor, cmd, modal, &mut register, smart_tab);
+    let had_edits = action.do_edit(
+        ed,
+        &mut cursor,
+        cmd,
+        modal_flavour,
+        &mut register,
+        smart_tab,
+    );
 
     if had_edits {
         if let Some(data) = yank_data {
@@ -182,7 +190,7 @@ pub trait CommonAction {
         ed: &Editor,
         cursor: &mut Cursor,
         cmd: &EditCommand,
-        modal: bool,
+        modal_flavour: ModalFlavour,
         register: &mut Register,
         smart_tab: bool,
     ) -> bool;

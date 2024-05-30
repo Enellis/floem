@@ -31,6 +31,7 @@ pub enum VisualMode {
     Normal,
     Linewise,
     Blockwise,
+    HelixNormal,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Copy, PartialOrd, Ord)]

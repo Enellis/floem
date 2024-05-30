@@ -1,6 +1,8 @@
 use std::rc::Rc;
 
-use floem_editor_core::{buffer::rope_text::RopeTextVal, indent::IndentStyle};
+use floem_editor_core::{
+    buffer::rope_text::RopeTextVal, indent::IndentStyle, modal_flavour::ModalFlavour,
+};
 use floem_reactive::{create_updater, with_scope, RwSignal, Scope};
 use peniko::Color;
 
@@ -27,7 +29,7 @@ use super::editor::{
     keypress::press::KeyPress,
     text::{RenderWhitespace, WrapMethod},
     view::EditorViewClass,
-    CurrentLineColor, CursorSurroundingLines, IndentGuideColor, IndentStyleProp, Modal,
+    CurrentLineColor, CursorSurroundingLines, IndentGuideColor, IndentStyleProp, ModalFlavourProp,
     ModalRelativeLine, PhantomColor, PlaceholderColor, PreeditUnderlineColor, RenderWhitespaceProp,
     ScrollBeyondLastLine, SelectionColor, ShowIndentGuide, SmartTab, VisibleWhitespaceColor,
     WrapProp,
@@ -50,7 +52,7 @@ pub fn text_editor(text: impl Into<Rope>) -> TextEditor {
 
     let doc = Rc::new(TextDocument::new(cx, text));
     let style = Rc::new(SimpleStyling::new());
-    let editor = Editor::new(cx, doc, style, false);
+    let editor = Editor::new(cx, doc, style, ModalFlavour::None);
 
     let editor_sig = cx.create_rw_signal(editor.clone());
     let child = with_scope(cx, || {
@@ -78,7 +80,7 @@ pub fn text_editor_keys(
 
     let doc = Rc::new(TextDocument::new(cx, text));
     let style = Rc::new(SimpleStyling::new());
-    let editor = Editor::new(cx, doc, style, false);
+    let editor = Editor::new(cx, doc, style, ModalFlavour::None);
 
     let editor_sig = cx.create_rw_signal(editor.clone());
     let child = with_scope(cx, || {
@@ -284,8 +286,10 @@ impl EditorCustomStyle {
     }
 
     /// Sets the editor's mode to modal or non-modal.
-    pub fn modal(mut self, modal: bool) -> Self {
-        self.0 = self.0.class(EditorViewClass, |s| s.set(Modal, modal));
+    pub fn modal_flavour(mut self, modal_flavour: ModalFlavour) -> Self {
+        self.0 = self
+            .0
+            .class(EditorViewClass, |s| s.set(ModalFlavourProp, modal_flavour));
         self
     }
 
@@ -425,7 +429,7 @@ impl TextEditor {
 
         let doc = self.editor.doc();
         let style = self.editor.style();
-        let editor = Editor::new(self.cx, doc, style, false);
+        let editor = Editor::new(self.cx, doc, style, ModalFlavour::None);
 
         let editor_sig = self.cx.create_rw_signal(editor.clone());
         let child = with_scope(self.cx, || {

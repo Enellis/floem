@@ -553,7 +553,7 @@ impl EditorView {
             CursorMode::Visual {
                 start,
                 end,
-                mode: VisualMode::Normal,
+                mode: VisualMode::Normal | VisualMode::HelixNormal,
             } => {
                 let start_offset = start.min(end);
                 let end_offset = ed.move_right(start.max(end), Mode::Insert, 1);
